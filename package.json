@@ -1,0 +1,20 @@
+{
+  "name": "bot-musica-vip",
+  "version": "1.0.0",
+  "description": "Bot de música independente para Discord",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.14.1",
+    "distube": "^4.1.1",
+    "@distube/youtube": "latest",
+    "@distube/spotify": "latest",
+    "@discordjs/voice": "latest",
+    "@discordjs/opus": "latest",
+    "ffmpeg-static": "latest",
+    "libsodium-wrappers": "latest",
+    "dotenv": "^16.4.1"
+  }
+}
