@@ -8,9 +8,9 @@
   },
   "dependencies": {
     "discord.js": "^14.14.1",
-    "distube": "^4.1.1",
-    "@distube/youtube": "latest",
-    "@distube/spotify": "latest",
+    "distube": "^5.0.0",
+    "@distube/youtube": "^1.0.0",
+    "@distube/spotify": "^2.0.0",
     "@discordjs/voice": "latest",
     "@discordjs/opus": "latest",
     "ffmpeg-static": "latest",
