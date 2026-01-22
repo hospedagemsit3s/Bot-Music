@@ -27,12 +27,11 @@ const client = new Client({
     ]
 });
 
-// Configuração do DisTube - Focada em estabilidade
+// Configuração do DisTube v5 (Opções corrigidas)
 client.distube = new DisTube(client, {
     emitNewSongOnly: true,
     emitAddSongWhenCreatingQueue: false,
-    leaveOnEmpty: true,
-    nsfw: true, // Ajuda a evitar bloqueios de idade
+    // No DisTube v5, leaveOnEmpty e outras opções foram movidas ou removidas das opções principais
     plugins: [
         new YouTubePlugin(),
         new SpotifyPlugin()
@@ -83,7 +82,7 @@ client.distube
     })
     .on('error', (channel, e) => {
         console.error(e);
-        if (channel) channel.send(`❌ Erro: O YouTube bloqueou esta música. Tente outra ou use um link direto.`);
+        if (channel) channel.send(`❌ Erro: O YouTube bloqueou esta música ou ocorreu um erro de conexão.`);
     });
 
 client.on('interactionCreate', async (interaction) => {
@@ -107,7 +106,7 @@ client.on('interactionCreate', async (interaction) => {
             });
         } catch (e) {
             console.error(e);
-            await interaction.editReply({ content: '❌ Não foi possível carregar a música. Tente novamente.' });
+            await interaction.editReply({ content: '❌ Não foi possível carregar a música. Tente novamente com outro nome ou link direto.' });
         }
     }
 
