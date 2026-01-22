@@ -6,14 +6,15 @@ const {
     Routes, 
     SlashCommandBuilder 
 } = require('discord.js');
-const { Player } = require('discord-player');
+const { Player, QueryType } = require('discord-player');
 const { DefaultExtractors } = require('@discord-player/extractor');
+const playdl = require('play-dl');
 const http = require('http');
 require('dotenv').config();
 
 // Servidor HTTP para manter o bot online no Render
 http.createServer((req, res) => {
-    res.write("Bot de Musica Blindado Online!");
+    res.write("Bot de Musica Camuflado Online!");
     res.end();
 }).listen(process.env.PORT || 3000);
 
@@ -26,15 +27,10 @@ const client = new Client({
     ]
 });
 
-// Configuração do Player (Discord-Player é mais estável no Render)
-const player = new Player(client, {
-    ytdlOptions: {
-        quality: 'highestaudio',
-        highWaterMark: 1 << 25
-    }
-});
+// Configuração do Player
+const player = new Player(client);
 
-// Carregar extratores (YouTube, Spotify, etc)
+// Carregar extratores manualmente para ter mais controle
 player.extractors.loadDefault();
 
 // Definição dos Comandos
@@ -73,13 +69,10 @@ player.events.on('playerStart', (queue, track) => {
     queue.metadata.channel.send({ embeds: [embed] });
 });
 
-player.events.on('error', (queue, error) => {
-    console.log(`[Erro na Fila] ${error.message}`);
-});
-
 player.events.on('playerError', (queue, error) => {
     console.log(`[Erro no Player] ${error.message}`);
-    queue.metadata.channel.send('❌ Erro ao processar áudio. O YouTube pode estar bloqueando a conexão.');
+    queue.metadata.channel.send('❌ Erro ao processar áudio. Tentando pular...');
+    queue.node.skip();
 });
 
 client.on('interactionCreate', async (interaction) => {
@@ -96,15 +89,30 @@ client.on('interactionCreate', async (interaction) => {
         const query = options.getString('busca');
         
         try {
-            const { track } = await player.play(member.voice.channel, query, {
+            // Forçar busca via YouTube para evitar erros de extratores de terceiros (Spotify/Apple)
+            const searchResult = await player.search(query, {
+                requestedBy: interaction.user,
+                searchEngine: query.includes('youtube.com') || query.includes('youtu.be') ? QueryType.YOUTUBE_VIDEO : QueryType.YOUTUBE_SEARCH
+            });
+
+            if (!searchResult || !searchResult.tracks.length) {
+                return interaction.editReply('❌ Nenhuma música encontrada para sua busca.');
+            }
+
+            const { track } = await player.play(member.voice.channel, searchResult, {
                 nodeOptions: {
-                    metadata: { channel: interaction.channel }
+                    metadata: { channel: interaction.channel },
+                    leaveOnEmpty: true,
+                    leaveOnEmptyCooldown: 30000,
+                    leaveOnEnd: false,
+                    selfDeaf: true,
                 }
             });
+
             await interaction.editReply(`✅ Adicionado à fila: **${track.title}**`);
         } catch (e) {
             console.error(e);
-            await interaction.editReply(`❌ Não foi possível tocar: ${e.message}`);
+            await interaction.editReply(`❌ Erro: O YouTube bloqueou a conexão. Tente novamente em instantes.`);
         }
     }
 
