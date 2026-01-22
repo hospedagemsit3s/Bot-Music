@@ -6,15 +6,15 @@ const {
     Routes, 
     SlashCommandBuilder 
 } = require('discord.js');
-const { Player, QueryType } = require('discord-player');
-const { DefaultExtractors } = require('@discord-player/extractor');
-const playdl = require('play-dl');
+const { DisTube } = require('distube');
+const { YouTubePlugin } = require('@distube/youtube');
+const { SpotifyPlugin } = require('@distube/spotify');
 const http = require('http');
 require('dotenv').config();
 
 // Servidor HTTP para manter o bot online no Render
 http.createServer((req, res) => {
-    res.write("Bot de Musica Camuflado Online!");
+    res.write("Bot de Musica Estavel Online!");
     res.end();
 }).listen(process.env.PORT || 3000);
 
@@ -27,11 +27,17 @@ const client = new Client({
     ]
 });
 
-// Configuração do Player
-const player = new Player(client);
-
-// Carregar extratores manualmente para ter mais controle
-player.extractors.loadDefault();
+// Configuração do DisTube - Focada em estabilidade
+client.distube = new DisTube(client, {
+    emitNewSongOnly: true,
+    emitAddSongWhenCreatingQueue: false,
+    leaveOnEmpty: true,
+    nsfw: true, // Ajuda a evitar bloqueios de idade
+    plugins: [
+        new YouTubePlugin(),
+        new SpotifyPlugin()
+    ]
+});
 
 // Definição dos Comandos
 const commands = [
@@ -58,76 +64,67 @@ client.once('ready', async () => {
     } catch (error) { console.error(error); }
 });
 
-// Eventos do Player
-player.events.on('playerStart', (queue, track) => {
-    const embed = new EmbedBuilder()
-        .setTitle('🎶 Tocando Agora')
-        .setDescription(`**[${track.title}](${track.url})**`)
-        .setThumbnail(track.thumbnail)
-        .setColor('#00FF00')
-        .setFooter({ text: `Duração: ${track.duration}` });
-    queue.metadata.channel.send({ embeds: [embed] });
-});
-
-player.events.on('playerError', (queue, error) => {
-    console.log(`[Erro no Player] ${error.message}`);
-    queue.metadata.channel.send('❌ Erro ao processar áudio. Tentando pular...');
-    queue.node.skip();
-});
+// Eventos do DisTube
+client.distube
+    .on('playSong', (queue, song) => {
+        const embed = new EmbedBuilder()
+            .setTitle('🎶 Tocando Agora')
+            .setDescription(`**[${song.name}](${song.url})**`)
+            .setThumbnail(song.thumbnail)
+            .setColor('#00FF00')
+            .addFields(
+                { name: 'Duração', value: `\`${song.formattedDuration}\``, inline: true },
+                { name: 'Pedido por', value: `${song.user}`, inline: true }
+            );
+        queue.textChannel.send({ embeds: [embed] });
+    })
+    .on('addSong', (queue, song) => {
+        queue.textChannel.send(`✅ Adicionado à fila: **${song.name}**`);
+    })
+    .on('error', (channel, e) => {
+        console.error(e);
+        if (channel) channel.send(`❌ Erro: O YouTube bloqueou esta música. Tente outra ou use um link direto.`);
+    });
 
 client.on('interactionCreate', async (interaction) => {
     if (!interaction.isChatInputCommand()) return;
 
-    const { commandName, options, member, guild } = interaction;
+    const { commandName, options, member, guild, channel } = interaction;
 
     if (!member.voice.channel) {
         return interaction.reply({ content: '❌ Você precisa estar em um canal de voz!', ephemeral: true });
     }
 
     if (commandName === 'play') {
-        await interaction.deferReply();
+        await interaction.reply({ content: '🔍 Buscando... Aguarde.', ephemeral: true });
         const query = options.getString('busca');
         
         try {
-            // Forçar busca via YouTube para evitar erros de extratores de terceiros (Spotify/Apple)
-            const searchResult = await player.search(query, {
-                requestedBy: interaction.user,
-                searchEngine: query.includes('youtube.com') || query.includes('youtu.be') ? QueryType.YOUTUBE_VIDEO : QueryType.YOUTUBE_SEARCH
+            await client.distube.play(member.voice.channel, query, {
+                member: member,
+                textChannel: channel,
+                interaction
             });
-
-            if (!searchResult || !searchResult.tracks.length) {
-                return interaction.editReply('❌ Nenhuma música encontrada para sua busca.');
-            }
-
-            const { track } = await player.play(member.voice.channel, searchResult, {
-                nodeOptions: {
-                    metadata: { channel: interaction.channel },
-                    leaveOnEmpty: true,
-                    leaveOnEmptyCooldown: 30000,
-                    leaveOnEnd: false,
-                    selfDeaf: true,
-                }
-            });
-
-            await interaction.editReply(`✅ Adicionado à fila: **${track.title}**`);
         } catch (e) {
             console.error(e);
-            await interaction.editReply(`❌ Erro: O YouTube bloqueou a conexão. Tente novamente em instantes.`);
+            await interaction.editReply({ content: '❌ Não foi possível carregar a música. Tente novamente.' });
         }
     }
 
     if (commandName === 'skip') {
-        const queue = player.nodes.get(guild.id);
-        if (!queue || !queue.isPlaying()) return interaction.reply({ content: '❌ Não há nada tocando!', ephemeral: true });
-        queue.node.skip();
-        interaction.reply('⏭️ Música pulada!');
+        const queue = client.distube.getQueue(guild);
+        if (!queue) return interaction.reply({ content: '❌ Não há nada tocando!', ephemeral: true });
+        try {
+            await client.distube.skip(guild);
+            interaction.reply('⏭️ Música pulada!');
+        } catch (e) { interaction.reply('❌ Não há mais músicas na fila.'); }
     }
 
     if (commandName === 'stop') {
-        const queue = player.nodes.get(guild.id);
+        const queue = client.distube.getQueue(guild);
         if (!queue) return interaction.reply({ content: '❌ Não há nada tocando!', ephemeral: true });
-        queue.delete();
-        interaction.reply('⏹️ Música parada e bot desconectado!');
+        client.distube.stop(guild);
+        interaction.reply('⏹️ Música parada!');
     }
 });
 
