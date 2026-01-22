@@ -1,16 +1,16 @@
 {
-  "name": "bot-musica-vip",
-  "version": "1.0.0",
-  "description": "Bot de música independente para Discord",
+  "name": "bot-musica-blindado",
+  "version": "1.1.0",
+  "description": "Bot de musica com discord-player",
   "main": "index.js",
   "scripts": {
     "start": "node index.js"
   },
   "dependencies": {
     "discord.js": "^14.14.1",
-    "distube": "^5.0.0",
-    "@distube/youtube": "^1.0.0",
-    "@distube/spotify": "^2.0.0",
+    "discord-player": "^6.6.10",
+    "@discord-player/extractor": "^4.4.7",
+    "play-dl": "^1.9.7",
     "@discordjs/voice": "latest",
     "@discordjs/opus": "latest",
     "ffmpeg-static": "latest",
